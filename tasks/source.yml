@@ -8,8 +8,7 @@
     update_cache: yes
     state: present
     name:
-      - libpcre3
-      - libpcre3-dev
+      - libpcre2-dev
       - libssl-dev
 
 - name: Nginx | Download the Nginx source release if not yet present
@@ -21,13 +20,20 @@
 
 - name: Nginx | Unpack the compressed Nginx source
   command: tar -xvzf /tmp/nginx-{{nginx_source_version}}.tar.gz
-           chdir=/tmp creates=/tmp/nginx-{{nginx_source_version}}/README
+           chdir=/tmp creates=/tmp/nginx-{{nginx_source_version}}/configure
 
 - name: Nginx | Write out the version and flags used for the build
   template:
     src: .nginx_compilation_flags.j2
     dest: "{{nginx_dir}}/.nginx_compilation_flags"
   register: nginx_flags
+
+# The flags file is written before compiling, so a failed or interrupted build would
+# otherwise never be retried. Also compile whenever the binary is missing.
+- name: Nginx | Check whether the Nginx binary is installed
+  stat:
+    path: "{{nginx_source_prefix}}/sbin/nginx"
+  register: nginx_binary
 
 - name: Nginx | Kill Nginx (old threads)
   command: pkill nginx
@@ -40,7 +46,7 @@
     {{nginx_cflags}} {{nginx_ldflags}} ./configure {{nginx_source_configure_flags}} &&
     make &&
     make install
-  when: nginx_flags.changed
+  when: nginx_flags.changed or not nginx_binary.stat.exists
 
 - name: Nginx | Update the symbolic link to the nginx install
   file:

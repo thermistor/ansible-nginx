@@ -17,6 +17,21 @@
     recursive: yes
     update: yes
     force: true
+  register: nginx_brotli_repo
+
+# Without this the build dir shows up as a modified submodule, so the clone above
+# reports a change and the brotli build re-runs every time.
+- name: Nginx | Modules | Keep the brotli build dir out of git status
+  ansible.builtin.lineinfile:
+    path: /usr/local/src/ngx_brotli/.git/modules/deps/brotli/info/exclude
+    line: /out/
+    create: yes
+    mode: '0644'
+
+- name: Nginx | Modules | Check whether the brotli library is built
+  ansible.builtin.stat:
+    path: /usr/local/src/ngx_brotli/deps/brotli/out/libbrotlienc.a
+  register: nginx_brotli_lib
 
 - name: Nginx | Modules | Brotli dependencies
   ansible.builtin.apt:
@@ -36,11 +51,13 @@
   ansible.builtin.command:
     chdir: /usr/local/src/ngx_brotli/deps/brotli/out
     cmd: cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_C_FLAGS="-Ofast -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_CXX_FLAGS="-Ofast -m64 -march=native -mtune=native -flto -funroll-loops -ffunction-sections -fdata-sections -Wl,--gc-sections" -DCMAKE_INSTALL_PREFIX=./installed ..
+  when: nginx_brotli_repo is changed or not nginx_brotli_lib.stat.exists
 
 - name: Nginx | Modules | Build brotli
   ansible.builtin.command:
     chdir: /usr/local/src/ngx_brotli/deps/brotli/out
     cmd: cmake --build . --config Release --target brotlienc
+  when: nginx_brotli_repo is changed or not nginx_brotli_lib.stat.exists
 
 - name: Nginx | Modules | Copy brotli config
   ansible.builtin.copy:
