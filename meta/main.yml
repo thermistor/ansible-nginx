@@ -1,5 +1,7 @@
 ---
 galaxy_info:
+  role_name: nginx
+  namespace: thermistor
   author: Weston Triemstra
   company: Netsign
   description: Install and configure Nginx, derived from ANXS.nginx
